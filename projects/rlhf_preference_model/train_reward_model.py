@@ -5,6 +5,7 @@ Loss: -log σ(r_chosen - r_rejected). Saves best checkpoint by eval loss.
 """
 
 import argparse
+import json
 import logging
 import os
 import random
@@ -86,6 +87,8 @@ def main():
             os.makedirs(out_path, exist_ok=True)
             torch.save(model.state_dict(), os.path.join(out_path, "pytorch_model.bin"))
             tokenizer.save_pretrained(out_path)
+            with open(os.path.join(out_path, "training_config.json"), "w") as f:
+                json.dump({"model_name": args.model_name, "max_length": args.max_length}, f, indent=2)
             logger.info(f"Saved best model to {out_path}")
 
     logger.info("Training complete.")
