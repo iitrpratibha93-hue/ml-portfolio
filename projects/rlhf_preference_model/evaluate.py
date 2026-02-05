@@ -5,6 +5,7 @@ where score(chosen) > score(rejected)).
 """
 
 import argparse
+import json
 import os
 
 import torch
@@ -19,21 +20,30 @@ def main():
     parser = argparse.ArgumentParser(description="Evaluate RLHF preference model")
     parser.add_argument("--data_path", type=str, default="data/sample_preferences.jsonl")
     parser.add_argument("--checkpoint_path", type=str, default="checkpoints/reward_model/best_model")
-    parser.add_argument("--max_length", type=int, default=256)
+    parser.add_argument("--max_length", type=int, default=None, help="Default: from training_config.json")
     parser.add_argument("--batch_size", type=int, default=8)
     args = parser.parse_args()
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    config_path = os.path.join(args.checkpoint_path, "training_config.json")
+    if os.path.isfile(config_path):
+        with open(config_path) as f:
+            train_config = json.load(f)
+        model_name = train_config["model_name"]
+        max_length = args.max_length or train_config.get("max_length", 256)
+    else:
+        model_name = args.checkpoint_path
+        max_length = args.max_length or 256
+
     tokenizer = AutoTokenizer.from_pretrained(args.checkpoint_path)
     dataset = PreferenceDataset(
         args.data_path,
         tokenizer=tokenizer,
-        max_length=args.max_length,
+        max_length=max_length,
     )
     dataloader = DataLoader(dataset, batch_size=args.batch_size, shuffle=False)
 
-    # Infer base model name from config in checkpoint dir if needed; else use same as training
-    model = RewardModel(args.checkpoint_path)
+    model = RewardModel(model_name)
     state_path = os.path.join(args.checkpoint_path, "pytorch_model.bin")
     if not os.path.isfile(state_path):
         raise FileNotFoundError(f"Checkpoint not found: {state_path}")
